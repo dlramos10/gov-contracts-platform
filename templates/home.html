@@ -1,56 +1,90 @@
-@app.route('/home')
-def home():
-    if 'user' not in session:
-        return redirect(url_for('login'))
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gov Contract Opportunities</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        label {
+            margin-right: 10px;
+        }
+        input[type="text"], input[type="date"] {
+            margin-right: 10px;
+            padding: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #2c3e50;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .logout {
+            float: right;
+        }
+    </style>
+</head>
+<body>
 
-    keyword = request.args.get('keyword', '')
-    start_date = request.args.get('start_date', '')
-    end_date = request.args.get('end_date', '')
-    naics = request.args.get('naics', '')
+    <h1>Welcome {{ user }}</h1>
 
-    # Set default date range to last 7 days if nothing entered
-    today = datetime.date.today()
-    if not end_date:
-        end_date = today.strftime("%m/%d/%Y")
-    else:
-        end_date = datetime.datetime.strptime(end_date, "%Y-%m-%d").strftime("%m/%d/%Y")
+    <form method="get" action="{{ url_for('home') }}">
+        <label>Keyword:</label>
+        <input type="text" name="keyword" value="{{ request.args.get('keyword', '') }}">
+        
+        <label>NAICS:</label>
+        <input type="text" name="naics" value="{{ request.args.get('naics', '') }}">
 
-    if not start_date:
-        start_date = (today - datetime.timedelta(days=7)).strftime("%m/%d/%Y")
-    else:
-        start_date = datetime.datetime.strptime(start_date, "%Y-%m-%d").strftime("%m/%d/%Y")
+        <label>Start Date:</label>
+        <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}">
 
-    headers = {"X-API-Key": SAM_API_KEY}
-    params = {
-        "postedFrom": start_date,
-        "postedTo": end_date,
-        "ptype": "o",
-        "limit": 50
-    }
+        <label>End Date:</label>
+        <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
 
-    if keyword:
-        params["q"] = keyword
-    if naics:
-        params["naics"] = naics
+        <input type="submit" value="Search">
+    </form>
 
-    response = requests.get(SAM_URL, headers=headers, params=params)
-    results = []
+    {% if opportunities %}
+        <table>
+            <tr>
+                <th>Solicitation #</th>
+                <th>Title</th>
+                <th>Agency</th>
+                <th>Posted Date</th>
+                <th>NAICS</th>
+            </tr>
+            {% for opp in opportunities %}
+            <tr>
+                <td>{{ opp[0] }}</td>
+                <td>{{ opp[1] }}</td>
+                <td>{{ opp[2] }}</td>
+                <td>{{ opp[3] }}</td>
+                <td>{{ opp[4] }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>No results found.</p>
+    {% endif %}
 
-    if response.status_code == 200:
-        data = response.json()
-        for item in data.get("opportunitiesData", []):
-            sol_num = item.get("solicitationNumber", "N/A")
-            title = item.get("title", "N/A")
-            agency = item.get("departmentName", "N/A")
-            raw_date = item.get("postedDate", "")
-            try:
-                date_obj = datetime.datetime.strptime(raw_date[:10], "%m/%d/%Y")
-                date = date_obj.strftime("%Y-%m-%d")
-            except Exception:
-                date = "Unknown"
-            naics_code = item.get("naics", {}).get("code", "N/A")
-            results.append((sol_num, title, agency, date, naics_code))
-    else:
-        print(f"API Error: {response.status_code} - {response.text}")
-
-    return render_template('home.html', user=session['user'], opportunities=results)
+</body>
+</html>
