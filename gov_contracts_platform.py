@@ -52,8 +52,8 @@ config.validate()
 # Reconfigure logging with the validated LOG_LEVEL
 logging.getLogger(__name__).setLevel(getattr(logging, config.LOG_LEVEL))
 
-# Set current date and time (07:53 PM EDT, June 09, 2025)
-current_datetime = datetime.datetime(2025, 6, 9, 19, 53, tzinfo=datetime.timezone(datetime.timedelta(hours=-4)))  # EDT is UTC-4
+# Set current date and time (07:55 PM EDT, June 09, 2025)
+current_datetime = datetime.datetime(2025, 6, 9, 19, 55, tzinfo=datetime.timezone(datetime.timedelta(hours=-4)))  # EDT is UTC-4
 
 # Log startup with current date and time
 logger.info(f"Application starting at {current_datetime.strftime('%Y-%m-%d %I:%M %p %Z')}")
