@@ -4,6 +4,7 @@
 import requests
 import datetime
 import sqlite3
+import os
 from flask import Flask, render_template, request, redirect, url_for, session
 import smtplib
 from email.mime.text import MIMEText
@@ -134,4 +135,5 @@ scheduler.start()
 # Main runner
 if __name__ == '__main__':
     setup_database()
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
