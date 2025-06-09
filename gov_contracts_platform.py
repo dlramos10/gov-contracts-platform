@@ -1,5 +1,5 @@
 # gov_contracts_platform.py
-# Expanded: Real-time fetch from SAM.gov on each request to /home
+# Expanded: Real-time fetch from SAM.gov on each request to /home with live opportunity links
 
 import requests
 import datetime
@@ -109,7 +109,6 @@ def home():
     if keyword:
         params["q"] = keyword
 
-    # Only include NAICS if provided (to allow all NAICS when left blank)
     if naics:
         params["naics"] = naics
 
@@ -129,7 +128,9 @@ def home():
             except:
                 date = "Unknown"
             naics_code = item.get("naics", {}).get("code", "N/A")
-            results.append((sol_num, title, agency, date, naics_code))
+            opp_id = item.get("noticeId", "")
+            link = f"https://sam.gov/opp/{opp_id}/view" if opp_id else ""
+            results.append((sol_num, title, agency, date, naics_code, link))
     else:
         print(f"API Error: {response.status_code} - {response.text}")
 
