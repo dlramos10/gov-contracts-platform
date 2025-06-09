@@ -1,116 +1,91 @@
+```html
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Gov Contract Opportunities</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background-color: #f5f5f5;
-    }
-    header {
-      display: flex;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    header img {
-      height: 60px;
-      margin-right: 20px;
-    }
-    header h1 {
-      font-size: 24px;
-      color: #2c3e50;
-      margin: 0;
-    }
-    form {
-      margin-bottom: 20px;
-    }
-    label {
-      margin-right: 10px;
-    }
-    input[type="text"], input[type="date"] {
-      margin-right: 10px;
-      padding: 5px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 10px;
-      text-align: left;
-    }
-    th {
-      background-color: #2c3e50;
-      color: white;
-    }
-    tr:nth-child(even) {
-      background-color: #f2f2f2;
-    }
-    a {
-      color: #0066cc;
-      text-decoration: none;
-    }
-    a:hover {
-      text-decoration: underline;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Government Contracts Platform</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; }
+        h1, h2 { text-align: center; margin-bottom: 20px; }
+        .table-container { margin-bottom: 40px; }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h1>Government Contracts Platform</h1>
+        
+        <!-- Opportunities Table -->
+        <h2>Contract Opportunities (SAM.gov)</h2>
+        <div class="table-container">
+            {% if opportunities %}
+            <table class="table table-striped table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Solicitation Number</th>
+                        <th>Title</th>
+                        <th>Agency</th>
+                        <th>Date</th>
+                        <th>NAICS Code</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for opp in opportunities %}
+                    <tr>
+                        <td>{{ opp.solicitation_number or 'N/A' }}</td>
+                        <td>{{ opp.title or 'N/A' }}</td>
+                        <td>{{ opp.agency or 'N/A' }}</td>
+                        <td>{{ opp.date or 'N/A' }}</td>
+                        <td>{{ opp.naics_code or 'N/A' }}</td>
+                        <td><a href="{{ opp.link }}" target="_blank">View</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted">No opportunities found.</p>
+            {% endif %}
+        </div>
 
-  <header>
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="Titan Logo">
-    <h1>Contract Opportunities Dashboard</h1>
-  </header>
+        <!-- Awards Table -->
+        <h2>Contract Awards (USAspending.gov)</h2>
+        <div class="table-container">
+            {% if awards %}
+            <table class="table table-striped table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Award ID</th>
+                        <th>Recipient Name</th>
+                        <th>Agency</th>
+                        <th>Date</th>
+                        <th>NAICS Code</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for award in awards %}
+                    <tr>
+                        <td>{{ award.award_id or 'N/A' }}</td>
+                        <td>{{ award.recipient_name or 'N/A' }}</td>
+                        <td>{{ award.agency or 'N/A' }}</td>
+                        <td>{{ award.date or 'N/A' }}</td>
+                        <td>{{ award.naics_code or 'N/A' }}</td>
+                        <td><a href="{{ award.link }}" target="_blank">View</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted">No awards found.</p>
+            {% endif %}
+        </div>
+    </div>
 
-  <form method="get" action="{{ url_for('home') }}">
-    <label>Keyword:</label>
-    <input type="text" name="keyword" value="{{ request.args.get('keyword', '') }}">
-
-    <label>NAICS:</label>
-    <input type="text" name="naics" value="{{ request.args.get('naics', '') }}">
-
-    <label>Start Date:</label>
-    <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}">
-
-    <label>End Date:</label>
-    <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
-
-    <input type="submit" value="Search">
-  </form>
-
-  {% if opportunities %}
-  <table>
-    <thead>
-      <tr>
-        <th>Source</th>
-        <th>Solicitation / Award</th>
-        <th>Title</th>
-        <th>Agency</th>
-        <th>Date</th>
-        <th>NAICS</th>
-        <th>Link</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for opp in opportunities %}
-      <tr>
-        <td>{{ opp[0] }}</td>
-        <td>{{ opp[0] if opp[0] != 'USAspending' else 'Award' }}</td>
-        <td>{{ opp[1] }}</td>
-        <td>{{ opp[2] }}</td>
-        <td>{{ opp[3] }}</td>
-        <td>{{ opp[4] }}</td>
-        <td><a href="{{ opp[5] }}" target="_blank">View</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-    <p>No results found.</p>
-  {% endif %}
-
+    <!-- Bootstrap JS (Optional for interactivity) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+```
