@@ -80,4 +80,58 @@ def fetch_and_store_opportunities():
             date = item.get("postedDate", "N/A")
             save_opportunity(sol_num, title, agency, date)
     else:
-        print(f"Failed
+        print(f"Failed to fetch data: {response.status_code} - {response.text}")
+
+# Send email alerts (placeholder logic)
+def send_email_alert():
+    msg = MIMEText("New federal contract opportunities available!")
+    msg['Subject'] = 'Gov Contract Alerts'
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_SENDER
+
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.send_message(msg)
+
+# Flask routes
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
+        user = cursor.fetchone()
+        conn.close()
+        if user:
+            session['user'] = username
+            return redirect(url_for('home'))
+    return render_template('login.html')
+
+@app.route('/home')
+def home():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    keyword = request.args.get('keyword', '')
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    if keyword:
+        cursor.execute("SELECT * FROM opportunities WHERE title LIKE ?", (f"%{keyword}%",))
+    else:
+        cursor.execute("SELECT * FROM opportunities ORDER BY postedDate DESC LIMIT 10")
+    results = cursor.fetchall()
+    conn.close()
+    return render_template('home.html', user=session['user'], opportunities=results)
+
+# Schedule job
+scheduler = BackgroundScheduler()
+scheduler.add_job(fetch_and_store_opportunities, 'interval', hours=24)
+scheduler.add_job(send_email_alert, 'interval', days=1)
+scheduler.start()
+
+# Main runner
+if __name__ == '__main__':
+    setup_database()
+    app.run(debug=True)
