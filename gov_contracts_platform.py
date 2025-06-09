@@ -47,6 +47,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Set current date and time (07:38 PM EDT, June 09, 2025)
+current_datetime = datetime.datetime(2025, 6, 9, 19, 38, tzinfo=datetime.timezone(datetime.timedelta(hours=-4)))  # EDT is UTC-4
+
+# Log startup with current date and time
+logger.info(f"Application starting at {current_datetime.strftime('%Y-%m-%d %I:%M %p %Z')}")
+
 @contextmanager
 def database_connection():
     """Context manager for database connections"""
@@ -263,7 +269,7 @@ def schedule_jobs():
         fetch_and_store_data,
         'interval',
         hours=24,
-        next_run_time=datetime.datetime.now()
+        next_run_time=current_datetime  # Start immediately at the specified time
     )
     scheduler.start()
     logger.info("Scheduled jobs initialized")
