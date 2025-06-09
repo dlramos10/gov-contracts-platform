@@ -1,4 +1,4 @@
-```python
+
 import requests
 import datetime
 import sqlite3
@@ -47,8 +47,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Set current date and time (07:42 PM EDT, June 09, 2025)
-current_datetime = datetime.datetime(2025, 6, 9, 19, 42, tzinfo=datetime.timezone(datetime.timedelta(hours=-4)))  # EDT is UTC-4
+# Set current date and time (07:45 PM EDT, June 09, 2025)
+current_datetime = datetime.datetime(2025, 6, 9, 19, 45, tzinfo=datetime.timezone(datetime.timedelta(hours=-4)))  # EDT is UTC-4
 
 # Log startup with current date and time
 logger.info(f"Application starting at {current_datetime.strftime('%Y-%m-%d %I:%M %p %Z')}")
