@@ -40,6 +40,10 @@ def setup_database():
             password TEXT
         )
     ''')
+    # Insert default admin user if none exists
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("admin", "admin123"))
     conn.commit()
     conn.close()
 
@@ -96,6 +100,10 @@ def send_email_alert():
         server.send_message(msg)
 
 # Flask routes
+@app.route('/health')
+def health_check():
+    return "OK", 200
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
