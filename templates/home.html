@@ -1,0 +1,24 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard - Titan Gov Services</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h2>Welcome {{ user }}</h2>
+        <form method="GET">
+            <input name="keyword" placeholder="Search contracts..." value="{{ request.args.get('keyword', '') }}">
+            <button type="submit">Search</button>
+        </form>
+        <ul class="list">
+            {% for opp in opportunities %}
+                <li><strong>{{ opp[1] }}</strong> ({{ opp[2] }}) - {{ opp[3] }}</li>
+            {% else %}
+                <li>No results found.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>
