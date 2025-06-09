@@ -1,4 +1,4 @@
-```python
+
 import requests
 import datetime
 import sqlite3
