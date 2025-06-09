@@ -1,111 +1,56 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Contract Opportunities - Titan Gov</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #1e1e2f;
-      color: #fff;
-      margin: 0;
-    }
-    header {
-      background: #111;
-      padding: 15px 30px;
-      display: flex;
-      align-items: center;
-    }
-    header img {
-      height: 50px;
-      margin-right: 15px;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 22px;
-    }
-    .container {
-      padding: 20px 30px;
-    }
-    form {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    input[type="text"],
-    input[type="date"] {
-      padding: 10px;
-      border-radius: 5px;
-      border: none;
-      width: 200px;
-    }
-    input[type="submit"] {
-      background: #4e4e8a;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #2e2e3f;
-    }
-    th, td {
-      padding: 12px;
-      border-bottom: 1px solid #444;
-    }
-    th {
-      background: #3b3b5b;
-      text-align: left;
-    }
-    tr:hover {
-      background: #353553;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="Titan Logo">
-    <h1>Contract Opportunities</h1>
-  </header>
-  <div class="container">
-    <form method="get">
-      <input type="text" name="keyword" placeholder="Search title" value="{{ request.args.get('keyword', '') }}">
-      <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}">
-      <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
-      <input type="text" name="naics" placeholder="NAICS Code" value="{{ request.args.get('naics', '') }}">
-      <input type="submit" value="Filter">
-    </form>
+@app.route('/home')
+def home():
+    if 'user' not in session:
+        return redirect(url_for('login'))
 
-    <table>
-      <thead>
-        <tr>
-          <th>Solicitation #</th>
-          <th>Title</th>
-          <th>Agency</th>
-          <th>Posted Date</th>
-          <th>NAICS</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for opp in opportunities %}
-        <tr>
-          <td>{{ opp[0] }}</td>
-          <td>{{ opp[1] }}</td>
-          <td>{{ opp[2] }}</td>
-          <td>{{ opp[3] }}</td>
-          <td>{{ opp[4] }}</td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="5">No results found.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</body>
-</html>
+    keyword = request.args.get('keyword', '')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    naics = request.args.get('naics', '')
+
+    # Set default date range to last 7 days if nothing entered
+    today = datetime.date.today()
+    if not end_date:
+        end_date = today.strftime("%m/%d/%Y")
+    else:
+        end_date = datetime.datetime.strptime(end_date, "%Y-%m-%d").strftime("%m/%d/%Y")
+
+    if not start_date:
+        start_date = (today - datetime.timedelta(days=7)).strftime("%m/%d/%Y")
+    else:
+        start_date = datetime.datetime.strptime(start_date, "%Y-%m-%d").strftime("%m/%d/%Y")
+
+    headers = {"X-API-Key": SAM_API_KEY}
+    params = {
+        "postedFrom": start_date,
+        "postedTo": end_date,
+        "ptype": "o",
+        "limit": 50
+    }
+
+    if keyword:
+        params["q"] = keyword
+    if naics:
+        params["naics"] = naics
+
+    response = requests.get(SAM_URL, headers=headers, params=params)
+    results = []
+
+    if response.status_code == 200:
+        data = response.json()
+        for item in data.get("opportunitiesData", []):
+            sol_num = item.get("solicitationNumber", "N/A")
+            title = item.get("title", "N/A")
+            agency = item.get("departmentName", "N/A")
+            raw_date = item.get("postedDate", "")
+            try:
+                date_obj = datetime.datetime.strptime(raw_date[:10], "%m/%d/%Y")
+                date = date_obj.strftime("%Y-%m-%d")
+            except Exception:
+                date = "Unknown"
+            naics_code = item.get("naics", {}).get("code", "N/A")
+            results.append((sol_num, title, agency, date, naics_code))
+    else:
+        print(f"API Error: {response.status_code} - {response.text}")
+
+    return render_template('home.html', user=session['user'], opportunities=results)
