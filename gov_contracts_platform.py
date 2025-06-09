@@ -1,5 +1,5 @@
 # gov_contracts_platform.py
-# Phase 3: Backend with SQLite + Flask UI + Email Scheduler + Basic Login System
+# Expanded: Adds USAspending.gov integration alongside SAM.gov and date filters on dashboard
 
 import requests
 import datetime
@@ -13,6 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # Configuration
 SAM_API_KEY = "your_sam_api_key_here"
 SAM_URL = "https://api.sam.gov/opportunities/v2/search"
+USASPENDING_API = "https://api.usaspending.gov/api/v2/search/spending_by_award/"
 DB_FILE = "contracts.db"
 EMAIL_SENDER = "your_email@example.com"
 EMAIL_PASSWORD = "your_email_password"
@@ -31,7 +32,8 @@ def setup_database():
             solicitationNumber TEXT PRIMARY KEY,
             title TEXT,
             agency TEXT,
-            postedDate TEXT
+            postedDate TEXT,
+            naicsCode TEXT
         )
     ''')
     cursor.execute('''
@@ -40,7 +42,6 @@ def setup_database():
             password TEXT
         )
     ''')
-    # Insert default admin user if none exists
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("admin", "admin123"))
@@ -48,24 +49,23 @@ def setup_database():
     conn.close()
 
 # Save opportunity to the database
-def save_opportunity(sol_num, title, agency, date):
+def save_opportunity(sol_num, title, agency, date, naicsCode=""):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            INSERT INTO opportunities (solicitationNumber, title, agency, postedDate)
-            VALUES (?, ?, ?, ?)
-        ''', (sol_num, title, agency, date))
+            INSERT INTO opportunities (solicitationNumber, title, agency, postedDate, naicsCode)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (sol_num, title, agency, date, naicsCode))
         conn.commit()
     except sqlite3.IntegrityError:
         pass
     conn.close()
 
-# Fetch and save opportunities
+# Fetch from SAM.gov
 def fetch_and_store_opportunities():
     today = datetime.date.today()
     week_ago = today - datetime.timedelta(days=7)
-
     headers = {"X-API-Key": SAM_API_KEY}
     params = {
         "postedFrom": week_ago.strftime("%m/%d/%Y"),
@@ -73,9 +73,7 @@ def fetch_and_store_opportunities():
         "ptype": "o",
         "limit": 20
     }
-
     response = requests.get(SAM_URL, headers=headers, params=params)
-
     if response.status_code == 200:
         data = response.json()
         for item in data.get("opportunitiesData", []):
@@ -83,23 +81,51 @@ def fetch_and_store_opportunities():
             sol_num = item.get("solicitationNumber", "N/A")
             agency = item.get("departmentName", "N/A")
             date = item.get("postedDate", "N/A")
-            save_opportunity(sol_num, title, agency, date)
+            naics = item.get("naics", {}).get("code", "")
+            save_opportunity(sol_num, title, agency, date, naics)
     else:
-        print(f"Failed to fetch data: {response.status_code} - {response.text}")
+        print(f"Failed to fetch SAM data: {response.status_code} - {response.text}")
 
-# Send email alerts (placeholder logic)
+# Fetch from USAspending.gov
+def fetch_usaspending():
+    today = datetime.date.today()
+    week_ago = today - datetime.timedelta(days=7)
+    payload = {
+        "filters": {
+            "time_period": [{
+                "start_date": week_ago.isoformat(),
+                "end_date": today.isoformat()
+            }],
+            "award_type_codes": ["A", "B", "C", "D"]
+        },
+        "fields": ["Award ID", "Recipient Name", "Awarding Agency", "Start Date"],
+        "limit": 20,
+        "page": 1
+    }
+    response = requests.post(USASPENDING_API, json=payload)
+    if response.status_code == 200:
+        data = response.json()
+        for result in data.get("results", []):
+            sol_num = result.get("Award ID", "N/A")
+            title = result.get("Recipient Name", "N/A")
+            agency = result.get("Awarding Agency", {}).get("name", "N/A")
+            date = result.get("Start Date", "N/A")
+            save_opportunity(sol_num, title, agency, date, "")
+    else:
+        print(f"Failed to fetch USAspending data: {response.status_code} - {response.text}")
+
+# Email alerts
 def send_email_alert():
     msg = MIMEText("New federal contract opportunities available!")
     msg['Subject'] = 'Gov Contract Alerts'
     msg['From'] = EMAIL_SENDER
     msg['To'] = EMAIL_SENDER
-
     with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
         server.starttls()
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.send_message(msg)
 
-# Flask routes
+# Routes
 @app.route('/health')
 def health_check():
     return "OK", 200
@@ -123,24 +149,48 @@ def login():
 def home():
     if 'user' not in session:
         return redirect(url_for('login'))
+
     keyword = request.args.get('keyword', '')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+
+    query = "SELECT * FROM opportunities WHERE 1=1"
+    params = []
+
+    if keyword:
+        query += " AND title LIKE ?"
+        params.append(f"%{keyword}%")
+
+    if start_date:
+        query += " AND postedDate >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND postedDate <= ?"
+        params.append(end_date)
+
+    naics = request.args.get('naics', '')
+    if naics:
+        query += " AND naicsCode = ?"
+        params.append(naics)
+
+    query += " ORDER BY postedDate DESC LIMIT 50"
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    if keyword:
-        cursor.execute("SELECT * FROM opportunities WHERE title LIKE ?", (f"%{keyword}%",))
-    else:
-        cursor.execute("SELECT * FROM opportunities ORDER BY postedDate DESC LIMIT 10")
+    cursor.execute(query, params)
     results = cursor.fetchall()
     conn.close()
+
     return render_template('home.html', user=session['user'], opportunities=results)
 
-# Schedule job
+# Scheduler
 scheduler = BackgroundScheduler()
 scheduler.add_job(fetch_and_store_opportunities, 'interval', hours=24)
+scheduler.add_job(fetch_usaspending, 'interval', hours=24)
 scheduler.add_job(send_email_alert, 'interval', days=1)
 scheduler.start()
 
-# Main runner
+# Run
 if __name__ == '__main__':
     setup_database()
     port = int(os.environ.get("PORT", 5000))
