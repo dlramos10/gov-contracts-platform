@@ -1,24 +1,111 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Dashboard - Titan Gov Services</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8">
+  <title>Contract Opportunities - Titan Gov</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #1e1e2f;
+      color: #fff;
+      margin: 0;
+    }
+    header {
+      background: #111;
+      padding: 15px 30px;
+      display: flex;
+      align-items: center;
+    }
+    header img {
+      height: 50px;
+      margin-right: 15px;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+    .container {
+      padding: 20px 30px;
+    }
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    input[type="text"],
+    input[type="date"] {
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+      width: 200px;
+    }
+    input[type="submit"] {
+      background: #4e4e8a;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #2e2e3f;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #444;
+    }
+    th {
+      background: #3b3b5b;
+      text-align: left;
+    }
+    tr:hover {
+      background: #353553;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Welcome {{ user }}</h2>
-        <form method="GET">
-            <input name="keyword" placeholder="Search contracts..." value="{{ request.args.get('keyword', '') }}">
-            <button type="submit">Search</button>
-        </form>
-        <ul class="list">
-            {% for opp in opportunities %}
-                <li><strong>{{ opp[1] }}</strong> ({{ opp[2] }}) - {{ opp[3] }}</li>
-            {% else %}
-                <li>No results found.</li>
-            {% endfor %}
-        </ul>
-    </div>
+  <header>
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="Titan Logo">
+    <h1>Contract Opportunities</h1>
+  </header>
+  <div class="container">
+    <form method="get">
+      <input type="text" name="keyword" placeholder="Search title" value="{{ request.args.get('keyword', '') }}">
+      <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}">
+      <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+      <input type="text" name="naics" placeholder="NAICS Code" value="{{ request.args.get('naics', '') }}">
+      <input type="submit" value="Filter">
+    </form>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Solicitation #</th>
+          <th>Title</th>
+          <th>Agency</th>
+          <th>Posted Date</th>
+          <th>NAICS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for opp in opportunities %}
+        <tr>
+          <td>{{ opp[0] }}</td>
+          <td>{{ opp[1] }}</td>
+          <td>{{ opp[2] }}</td>
+          <td>{{ opp[3] }}</td>
+          <td>{{ opp[4] }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5">No results found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </body>
 </html>
