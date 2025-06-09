@@ -38,8 +38,12 @@
         tr:nth-child(even) {
             background-color: #f2f2f2;
         }
-        .logout {
-            float: right;
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -71,6 +75,7 @@
                 <th>Agency</th>
                 <th>Posted Date</th>
                 <th>NAICS</th>
+                <th>Link</th>
             </tr>
             {% for opp in opportunities %}
             <tr>
@@ -79,6 +84,13 @@
                 <td>{{ opp[2] }}</td>
                 <td>{{ opp[3] }}</td>
                 <td>{{ opp[4] }}</td>
+                <td>
+                    {% if opp[5] %}
+                        <a href="{{ opp[5] }}" target="_blank">View</a>
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </table>
