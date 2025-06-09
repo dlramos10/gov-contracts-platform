@@ -108,6 +108,8 @@ def home():
 
     if keyword:
         params["q"] = keyword
+
+    # Only include NAICS if provided (to allow all NAICS when left blank)
     if naics:
         params["naics"] = naics
 
