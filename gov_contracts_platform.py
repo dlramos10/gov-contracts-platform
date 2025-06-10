@@ -113,24 +113,6 @@ def setup_database():
         logger.error(f"Database setup failed: {e}")
         raise
 
-def fetch_sam_data(params: Dict) -> List[Dict]:
-    try:
-        headers = {"X-API-Key": config.SAM_API_KEY}
-        response = requests.get(
-            config.SAM_URL,
-            headers=headers,
-            params=params,
-            timeout=30
-        )
-        response.raise_for_status()
-        data = response.json()
-        opportunities = data.get("opportunitiesData", [])
-        logger.info(f"Fetched {len(opportunities)} opportunities from SAM.gov")
-        return opportunities
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch SAM.gov data: {e}")
-        return []
-
 def fetch_usa_data(payload: Dict) -> List[Dict]:
     try:
         response = requests.post(
@@ -144,64 +126,8 @@ def fetch_usa_data(payload: Dict) -> List[Dict]:
         logger.info(f"Fetched {len(awards)} awards from USAspending.gov")
         return awards
     except requests.RequestException as e:
-        logger.error(f"Failed to fetch USAspending.gov data: {e}")
+        logger.error(f"Failed to fetch USAspending.gov data: {e}\nPayload sent: {payload}")
         return []
-
-def store_opportunities(opportunities: List[Dict]):
-    with database_connection() as conn:
-        cursor = conn.cursor()
-        for item in opportunities:
-            try:
-                date_str = ""
-                raw_date = item.get("postedDate", "")
-                if raw_date:
-                    date_obj = datetime.datetime.strptime(raw_date[:10], "%Y-%m-%d")
-                    date_str = date_obj.strftime("%Y-%m-%d")
-                cursor.execute('''
-                    INSERT OR IGNORE INTO opportunities 
-                    (source, solicitation_number, title, agency, date, naics_code, link)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    "SAM.gov",
-                    item.get("solicitationNumber", ""),
-                    item.get("title", ""),
-                    item.get("departmentName", ""),
-                    date_str,
-                    item.get("naics", {}).get("code", ""),
-                    f"https://sam.gov/opp/{quote(item.get('noticeId', ''))}/view"
-                ))
-            except (ValueError, sqlite3.Error) as e:
-                logger.warning(f"Failed to process opportunity {item.get('solicitationNumber', '')}: {e}")
-                continue
-        conn.commit()
-
-def store_awards(awards: List[Dict]):
-    with database_connection() as conn:
-        cursor = conn.cursor()
-        for item in awards:
-            try:
-                date_str = ""
-                raw_date = item.get("action_date", "")
-                if raw_date:
-                    date_obj = datetime.datetime.strptime(raw_date[:10], "%Y-%m-%d")
-                    date_str = date_obj.strftime("%Y-%m-%d")
-                cursor.execute('''
-                    INSERT OR IGNORE INTO awards 
-                    (source, award_id, recipient_name, agency, date, naics_code, link)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    "USAspending.gov",
-                    item.get("award_id", ""),
-                    item.get("recipient_name", ""),
-                    item.get("awarding_agency_name", ""),
-                    date_str,
-                    item.get("naics_code", ""),
-                    f"https://www.usaspending.gov/award/{quote(item.get('award_id', ''))}"
-                ))
-            except (ValueError, sqlite3.Error) as e:
-                logger.warning(f"Failed to process award {item.get('award_id', '')}: {e}")
-                continue
-        conn.commit()
 
 def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = None):
     logger.info("Starting data fetch at %s", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -221,7 +147,8 @@ def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = N
 
     usa_payload = {
         "filters": {
-            "time_period": [{"start_date": start_date.strftime("%Y-%m-%d"), "end_date": end_date.strftime("%Y-%m-%d")}]
+            "time_period": [{"start_date": start_date.strftime("%Y-%m-%d"), "end_date": end_date.strftime("%Y-%m-%d")}],
+            "award_type_codes": ["A", "B", "C", "D"]  # This is now restored because 'spending_by_award' supports it
         },
         "fields": ["Award ID", "Recipient Name", "NAICS Code", "Action Date", "Awarding Agency Name"],
         "limit": 50,
@@ -240,26 +167,6 @@ def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = N
     store_awards(usa_data)
 
     logger.info("Data fetch and store completed successfully")
-
-def schedule_jobs():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(fetch_and_store_data, 'interval', hours=24)
-    scheduler.start()
-    logger.info("Scheduled jobs initialized")
-
-@app.route('/')
-def home():
-    try:
-        with database_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM opportunities ORDER BY date DESC")
-            opportunities = [dict(row) for row in cursor.fetchall()]
-            cursor.execute("SELECT * FROM awards ORDER BY date DESC")
-            awards = [dict(row) for row in cursor.fetchall()]
-        return render_template('home.html', opportunities=opportunities, awards=awards)
-    except sqlite3.Error as e:
-        logger.error(f"Database query failed: {e}")
-        return "Error loading data. Check logs.", 500
 
 if __name__ == "__main__":
     try:
