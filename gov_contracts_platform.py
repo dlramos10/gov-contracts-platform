@@ -131,6 +131,62 @@ def fetch_sam_data(params: Dict) -> List[Dict]:
         logger.error(f"Failed to fetch SAM.gov data: {e}")
         return []
 
+def store_opportunities(opportunities: List[Dict]):
+    with database_connection() as conn:
+        cursor = conn.cursor()
+        for item in opportunities:
+            try:
+                date_str = ""
+                raw_date = item.get("postedDate", "")
+                if raw_date:
+                    date_obj = datetime.datetime.strptime(raw_date[:10], "%Y-%m-%d")
+                    date_str = date_obj.strftime("%Y-%m-%d")
+                cursor.execute('''
+                    INSERT OR IGNORE INTO opportunities 
+                    (source, solicitation_number, title, agency, date, naics_code, link)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    "SAM.gov",
+                    item.get("solicitationNumber", ""),
+                    item.get("title", ""),
+                    item.get("departmentName", ""),
+                    date_str,
+                    item.get("naics", {}).get("code", ""),
+                    f"https://sam.gov/opp/{quote(item.get('noticeId', ''))}/view"
+                ))
+            except (ValueError, sqlite3.Error) as e:
+                logger.warning(f"Failed to process opportunity {item.get('solicitationNumber', '')}: {e}")
+                continue
+        conn.commit()
+
+def store_awards(awards: List[Dict]):
+    with database_connection() as conn:
+        cursor = conn.cursor()
+        for item in awards:
+            try:
+                date_str = ""
+                raw_date = item.get("action_date", "")
+                if raw_date:
+                    date_obj = datetime.datetime.strptime(raw_date[:10], "%Y-%m-%d")
+                    date_str = date_obj.strftime("%Y-%m-%d")
+                cursor.execute('''
+                    INSERT OR IGNORE INTO awards 
+                    (source, award_id, recipient_name, agency, date, naics_code, link)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    "USAspending.gov",
+                    item.get("award_id", ""),
+                    item.get("recipient_name", ""),
+                    item.get("awarding_agency_name", ""),
+                    date_str,
+                    item.get("naics_code", ""),
+                    f"https://www.usaspending.gov/award/{quote(item.get('award_id', ''))}"
+                ))
+            except (ValueError, sqlite3.Error) as e:
+                logger.warning(f"Failed to process award {item.get('award_id', '')}: {e}")
+                continue
+        conn.commit()
+
 def fetch_usa_data(payload: Dict) -> List[Dict]:
     try:
         response = requests.post(
