@@ -1,4 +1,3 @@
-
 import requests
 import datetime
 import sqlite3
@@ -17,7 +16,7 @@ load_dotenv()
 
 # Configure logging before any other operations
 logging.basicConfig(
-    level=getattr(logging, "INFO"),  # Default LOG_LEVEL until config is initialized
+    level=getattr(logging, "INFO"),
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('contract_fetcher.log'),
@@ -33,16 +32,15 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 @dataclass
 class Config:
     SAM_API_KEY: str = os.getenv("SAM_API_KEY")
-    DB_FILE: str = os.getenv("DB_FILE", "/tmp/contract_data.db")  # Default to Render's writable /tmp
+    DB_FILE: str = os.getenv("DB_FILE", "/tmp/contract_data.db")
     SAM_URL: str = "https://api.sam.gov/prod/opportunities/v2/search"
     USA_API_URL: str = "https://api.usaspending.gov/api/v2/search/spending_by_transaction/"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    
+
     def validate(self):
         if not self.SAM_API_KEY:
             logger.error("SAM_API_KEY is not set. Please configure it in your environment variables.")
             raise ValueError("SAM_API_KEY is not set")
-        # Update logging level based on config after validation
         logging.getLogger(__name__).setLevel(getattr(logging, self.LOG_LEVEL))
 
 # Initialize configuration
@@ -52,15 +50,8 @@ config.validate()
 # Reconfigure logging with the validated LOG_LEVEL
 logging.getLogger(__name__).setLevel(getattr(logging, config.LOG_LEVEL))
 
-# Set current date and time (07:55 PM EDT, June 09, 2025)
-current_datetime = datetime.datetime(2025, 6, 9, 19, 55, tzinfo=datetime.timezone(datetime.timedelta(hours=-4)))  # EDT is UTC-4
-
-# Log startup with current date and time
-logger.info(f"Application starting at {current_datetime.strftime('%Y-%m-%d %I:%M %p %Z')}")
-
 @contextmanager
 def database_connection():
-    """Context manager for database connections"""
     conn = sqlite3.connect(config.DB_FILE)
     conn.row_factory = sqlite3.Row
     try:
@@ -72,7 +63,6 @@ def database_connection():
         conn.close()
 
 def setup_database():
-    """Initialize database schema and default user"""
     try:
         with database_connection() as conn:
             cursor = conn.cursor()
@@ -115,7 +105,7 @@ def setup_database():
             if cursor.fetchone()['count'] == 0:
                 cursor.execute(
                     "INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)",
-                    ("admin", "admin123")  # Use hashed passwords in production
+                    ("admin", "admin123")
                 )
             conn.commit()
             logger.info("Database setup completed successfully")
@@ -124,7 +114,6 @@ def setup_database():
         raise
 
 def fetch_sam_data(params: Dict) -> List[Dict]:
-    """Fetch opportunities from SAM.gov"""
     try:
         headers = {"X-API-Key": config.SAM_API_KEY}
         response = requests.get(
@@ -143,7 +132,6 @@ def fetch_sam_data(params: Dict) -> List[Dict]:
         return []
 
 def fetch_usa_data(payload: Dict) -> List[Dict]:
-    """Fetch awards from USAspending.gov"""
     try:
         response = requests.post(
             config.USA_API_URL,
@@ -160,7 +148,6 @@ def fetch_usa_data(payload: Dict) -> List[Dict]:
         return []
 
 def store_opportunities(opportunities: List[Dict]):
-    """Store SAM.gov opportunities in database"""
     with database_connection() as conn:
         cursor = conn.cursor()
         for item in opportunities:
@@ -189,7 +176,6 @@ def store_opportunities(opportunities: List[Dict]):
         conn.commit()
 
 def store_awards(awards: List[Dict]):
-    """Store USAspending.gov awards in database"""
     with database_connection() as conn:
         cursor = conn.cursor()
         for item in awards:
@@ -218,11 +204,10 @@ def store_awards(awards: List[Dict]):
         conn.commit()
 
 def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = None):
-    """Main function to fetch and store data from both sources"""
-    logger.info("Starting scheduled data fetch at %s", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("Starting data fetch at %s", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     end_date = datetime.date.today()
     start_date = end_date - datetime.timedelta(days=30)
-    
+
     sam_params = {
         "postedFrom": start_date.strftime("%m/%d/%Y"),
         "postedTo": end_date.strftime("%m/%d/%Y"),
@@ -233,7 +218,7 @@ def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = N
         sam_params["keyword"] = keyword
     if naics:
         sam_params["naics"] = naics
-    
+
     usa_payload = {
         "filters": {
             "time_period": [{"start_date": start_date.strftime("%Y-%m-%d"), "end_date": end_date.strftime("%Y-%m-%d")}],
@@ -248,40 +233,23 @@ def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = N
         usa_payload["filters"]["keywords"] = [keyword]
     if naics:
         usa_payload["filters"]["naics_codes"] = [naics]
-    
-    try:
-        with database_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM opportunities")
-            cursor.execute("DELETE FROM awards")
-            conn.commit()
-        
-        sam_data = fetch_sam_data(sam_params)
-        store_opportunities(sam_data)
-        
-        usa_data = fetch_usa_data(usa_payload)
-        store_awards(usa_data)
-        
-        logger.info("Data fetch and store completed successfully")
-    except Exception as e:
-        logger.error(f"Data fetch failed: {e}")
-        raise
+
+    sam_data = fetch_sam_data(sam_params)
+    store_opportunities(sam_data)
+
+    usa_data = fetch_usa_data(usa_payload)
+    store_awards(usa_data)
+
+    logger.info("Data fetch and store completed successfully")
 
 def schedule_jobs():
-    """Setup scheduled jobs"""
     scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        fetch_and_store_data,
-        'interval',
-        hours=24,
-        next_run_time=current_datetime  # Start immediately at the specified time
-    )
+    scheduler.add_job(fetch_and_store_data, 'interval', hours=24)
     scheduler.start()
     logger.info("Scheduled jobs initialized")
 
 @app.route('/')
 def home():
-    """Render the home page with opportunities and awards"""
     try:
         with database_connection() as conn:
             cursor = conn.cursor()
@@ -297,8 +265,9 @@ def home():
 if __name__ == "__main__":
     try:
         setup_database()
+        fetch_and_store_data()  # <- Automatically pull on startup
         schedule_jobs()
-        port = int(os.getenv("PORT", 5000))  # Use Render's PORT or default to 5000
+        port = int(os.getenv("PORT", 5000))
         app.run(debug=True, host='0.0.0.0', port=port)
     except Exception as e:
         logger.error(f"Application initialization failed: {e}")
