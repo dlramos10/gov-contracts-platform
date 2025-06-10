@@ -1,4 +1,4 @@
-import requests
+""import requests
 import datetime
 import sqlite3
 import os
@@ -224,23 +224,33 @@ def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = N
             "time_period": [{"start_date": start_date.strftime("%Y-%m-%d"), "end_date": end_date.strftime("%Y-%m-%d")}],
             "award_type_codes": ["A", "B", "C", "D"]
         },
-        "fields": ["Award ID", "Recipient Name", "NAICS Code", "Action Date", "Awarding Agency Name"],
+        "fields": ["award_id", "recipient_name", "naics_code", "action_date", "awarding_agency_name"],
         "limit": 50,
         "page": 1,
-        "sort": "-Action Date"
+        "sort": "-action_date"
     }
     if keyword:
         usa_payload["filters"]["keywords"] = [keyword]
     if naics:
         usa_payload["filters"]["naics_codes"] = [naics]
 
-    sam_data = fetch_sam_data(sam_params)
-    store_opportunities(sam_data)
+    try:
+        with database_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM opportunities")
+            cursor.execute("DELETE FROM awards")
+            conn.commit()
 
-    usa_data = fetch_usa_data(usa_payload)
-    store_awards(usa_data)
+        sam_data = fetch_sam_data(sam_params)
+        store_opportunities(sam_data)
 
-    logger.info("Data fetch and store completed successfully")
+        usa_data = fetch_usa_data(usa_payload)
+        store_awards(usa_data)
+
+        logger.info("Data fetch and store completed successfully")
+    except Exception as e:
+        logger.error(f"Data fetch failed: {e}")
+        raise
 
 def schedule_jobs():
     scheduler = BackgroundScheduler()
