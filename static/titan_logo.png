@@ -1,0 +1,7 @@
+your_project/
+├── static/
+│   ├── titan_logo.png
+│   └── style.css
+├── templates/
+│   └── home.html
+├── gov_contracts_platform.py
