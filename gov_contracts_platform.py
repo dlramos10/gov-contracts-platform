@@ -113,6 +113,24 @@ def setup_database():
         logger.error(f"Database setup failed: {e}")
         raise
 
+def fetch_sam_data(params: Dict) -> List[Dict]:
+    try:
+        headers = {"X-API-Key": config.SAM_API_KEY}
+        response = requests.get(
+            config.SAM_URL,
+            headers=headers,
+            params=params,
+            timeout=30
+        )
+        response.raise_for_status()
+        data = response.json()
+        opportunities = data.get("opportunitiesData", [])
+        logger.info(f"Fetched {len(opportunities)} opportunities from SAM.gov")
+        return opportunities
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch SAM.gov data: {e}")
+        return []
+
 def fetch_usa_data(payload: Dict) -> List[Dict]:
     try:
         response = requests.post(
@@ -148,7 +166,7 @@ def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = N
     usa_payload = {
         "filters": {
             "time_period": [{"start_date": start_date.strftime("%Y-%m-%d"), "end_date": end_date.strftime("%Y-%m-%d")}],
-            "award_type_codes": ["A", "B", "C", "D"]  # This is now restored because 'spending_by_award' supports it
+            "award_type_codes": ["A", "B", "C", "D"]
         },
         "fields": ["Award ID", "Recipient Name", "NAICS Code", "Action Date", "Awarding Agency Name"],
         "limit": 50,
@@ -167,6 +185,12 @@ def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = N
     store_awards(usa_data)
 
     logger.info("Data fetch and store completed successfully")
+
+def schedule_jobs():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(fetch_and_store_data, 'interval', hours=24)
+    scheduler.start()
+    logger.info("Scheduled jobs initialized")
 
 if __name__ == "__main__":
     try:
