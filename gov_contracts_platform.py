@@ -1,4 +1,4 @@
-import requests
+""import requests
 import datetime
 import sqlite3
 import os
@@ -34,7 +34,7 @@ class Config:
     SAM_API_KEY: str = os.getenv("SAM_API_KEY")
     DB_FILE: str = os.getenv("DB_FILE", "/tmp/contract_data.db")
     SAM_URL: str = "https://api.sam.gov/prod/opportunities/v2/search"
-    USA_API_URL: str = "https://api.usaspending.gov/api/v2/search/spending_by_transaction/"
+    USA_API_URL: str = "https://api.usaspending.gov/api/v2/search/spending_by_award/"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
     def validate(self):
@@ -221,13 +221,12 @@ def fetch_and_store_data(keyword: Optional[str] = None, naics: Optional[str] = N
 
     usa_payload = {
         "filters": {
-            "time_period": [{"start_date": start_date.strftime("%Y-%m-%d"), "end_date": end_date.strftime("%Y-%m-%d")}],
-            "award_type_codes": ["A", "B", "C", "D"]
+            "time_period": [{"start_date": start_date.strftime("%Y-%m-%d"), "end_date": end_date.strftime("%Y-%m-%d")}]
         },
-        "fields": ["award_id", "recipient_name", "naics_code", "action_date", "awarding_agency_name"],
+        "fields": ["Award ID", "Recipient Name", "NAICS Code", "Action Date", "Awarding Agency Name"],
         "limit": 50,
         "page": 1,
-        "sort": "-action_date"
+        "sort": "-Action Date"
     }
     if keyword:
         usa_payload["filters"]["keywords"] = [keyword]
@@ -265,7 +264,7 @@ def home():
 if __name__ == "__main__":
     try:
         setup_database()
-        fetch_and_store_data()  # <- Automatically pull on startup
+        fetch_and_store_data()
         schedule_jobs()
         port = int(os.getenv("PORT", 5000))
         app.run(debug=True, host='0.0.0.0', port=port)
